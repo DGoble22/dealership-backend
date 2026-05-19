@@ -1,0 +1,15 @@
+### Post add_car request example
+POST http://localhost/dealership-project/backend/api/add_car.php
+Content-Type: application/json
+
+{ "make": "Toyota",
+  "model": "Camry",
+  "trim": "XSE",
+  "year": 2024,
+  "miles": 12,
+  "price": 35000.50,
+  "vin": "1234567890ABCDEFG",
+  "status": "available",
+  "description": "Brand new 2024 Camry with leather seats."
+}
+###

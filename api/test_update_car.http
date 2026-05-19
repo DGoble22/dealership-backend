@@ -1,0 +1,7 @@
+### Post update_car request example
+POST http://localhost/dealership-project/backend/api/update_car.php
+Content-Type: application/json
+
+{ "carid": "1",
+  "description": "This is my personal vehicle with a rebuilt motor and replaced trans"
+}
