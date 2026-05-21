@@ -37,7 +37,7 @@ def add_car():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        payload = request.get_json()
+        payload = request.get_json(silent=True) or request.form
         make = payload.get('make')
         model = payload.get('model')
         trim = payload.get('trim')
@@ -54,10 +54,11 @@ def add_car():
 
         query = "INSERT INTO Car (make, model, trim, vin, status, description, year, miles, price, color) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute(query, (make, model, trim, vin, status, description, year, miles, price, color))
+        new_car_id = cursor.lastrowid
         conn.commit()
 
         cursor.close()
         conn.close()
-        return jsonify({"status": "success", "message": "Car added successfully!"}), 200
+        return jsonify({"status": "success", "message": "Car added successfully!", "carid": new_car_id}), 201
     except Exception as e:
         return jsonify({"status": "error", "message": "Failed to add car.", "error": str(e)}), 500
