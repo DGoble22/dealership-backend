@@ -1,1 +1,0 @@
-location for car pictures to be stored

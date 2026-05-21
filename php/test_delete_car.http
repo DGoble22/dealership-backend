@@ -1,0 +1,7 @@
+### Post delete a Car request example
+POST http://localhost/dealership-project/backend/api/delete_car.php
+Content-Type: application/json
+
+{
+  "id": 4
+}
