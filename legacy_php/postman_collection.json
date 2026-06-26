@@ -1,0 +1,223 @@
+{
+  "info": {
+    "_postman_id": "dealership-api",
+    "name": "Dealership Backend API",
+    "description": "Complete API collection for dealership inventory management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"receiveEmails\": false\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/register",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cars",
+      "item": [
+        {
+          "name": "Get All Cars",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:5000/cars",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars"]
+            }
+          }
+        },
+        {
+          "name": "Get Car by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:5000/cars/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars", "1"]
+            }
+          }
+        },
+        {
+          "name": "Add Car",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"make\": \"Toyota\",\n  \"model\": \"Camry\",\n  \"trim\": \"LE\",\n  \"year\": 2022,\n  \"miles\": 45000,\n  \"price\": 22999.99,\n  \"vin\": \"JTDKN3AU5J3072165\",\n  \"status\": \"available\",\n  \"description\": \"Well maintained sedan\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/cars",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars"]
+            }
+          }
+        },
+        {
+          "name": "Update Car",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 21999.99,\n  \"miles\": 50000\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/cars/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Car",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "http://localhost:5000/cars/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Images",
+      "item": [
+        {
+          "name": "Get Car Images",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:5000/cars/1/images",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars", "1", "images"]
+            }
+          }
+        },
+        {
+          "name": "Upload Image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "path/to/image.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:5000/cars/1/images",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars", "1", "images"]
+            }
+          }
+        },
+        {
+          "name": "Delete Image",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "http://localhost:5000/cars/1/images/5",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars", "1", "images", "5"]
+            }
+          }
+        },
+        {
+          "name": "Set Main Image",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "http://localhost:5000/cars/1/images/5/main",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["cars", "1", "images", "5", "main"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

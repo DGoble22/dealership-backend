@@ -1,0 +1,456 @@
+openapi: 3.0.0
+info:
+  title: Dealership Backend API
+  version: 1.0.0
+  description: REST API for dealership inventory management system
+servers:
+  - url: http://localhost/dealership-project/backend/api
+    description: Local Development
+  - url: http://localhost:5000
+    description: Flask Backend
+
+paths:
+  /register.php:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 6
+                  example: password123
+                receiveEmails:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /login.php:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  message:
+                    type: string
+                  token:
+                    type: string
+                    description: JWT token
+        '400':
+          description: Missing credentials
+        '401':
+          description: Invalid email or password
+
+  /get_cars.php:
+    get:
+      tags:
+        - Cars
+      summary: Get all cars
+      operationId: getAllCars
+      responses:
+        '200':
+          description: Cars retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Car'
+
+  /get_car_by_id.php:
+    get:
+      tags:
+        - Cars
+      summary: Get car by ID
+      operationId: getCarById
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Car found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Car'
+        '404':
+          description: Car not found
+
+  /add_car.php:
+    post:
+      tags:
+        - Cars
+      summary: Add new car
+      operationId: addCar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CarInput'
+      responses:
+        '201':
+          description: Car created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  carid:
+                    type: integer
+        '400':
+          description: Invalid input
+
+  /update_car.php:
+    post:
+      tags:
+        - Cars
+      summary: Update car
+      operationId: updateCar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - carid
+              properties:
+                carid:
+                  type: integer
+                make:
+                  type: string
+                model:
+                  type: string
+                trim:
+                  type: string
+                year:
+                  type: integer
+                miles:
+                  type: integer
+                price:
+                  type: number
+                vin:
+                  type: string
+                status:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Car updated
+        '404':
+          description: Car not found
+
+  /delete_car.php:
+    post:
+      tags:
+        - Cars
+      summary: Delete car
+      operationId: deleteCar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - carid
+              properties:
+                carid:
+                  type: integer
+      responses:
+        '200':
+          description: Car deleted
+        '404':
+          description: Car not found
+
+  /get_car_images.php:
+    get:
+      tags:
+        - Images
+      summary: Get car images
+      operationId: getCarImages
+      parameters:
+        - name: carid
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Images retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Picture'
+
+  /add_single_image.php:
+    post:
+      tags:
+        - Images
+      summary: Upload car image
+      operationId: uploadImage
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - carid
+                - image
+              properties:
+                carid:
+                  type: integer
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      picid:
+                        type: integer
+                      image_path:
+                        type: string
+                      is_main:
+                        type: integer
+        '400':
+          description: Invalid file
+
+  /delete_image.php:
+    post:
+      tags:
+        - Images
+      summary: Delete image
+      operationId: deleteImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - picid
+                - carid
+              properties:
+                picid:
+                  type: integer
+                carid:
+                  type: integer
+      responses:
+        '200':
+          description: Image deleted
+        '404':
+          description: Image not found
+
+  /set_is_main.php:
+    post:
+      tags:
+        - Images
+      summary: Set main image
+      operationId: setMainImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - picid
+                - carid
+              properties:
+                picid:
+                  type: integer
+                carid:
+                  type: integer
+      responses:
+        '200':
+          description: Main image updated
+
+components:
+  schemas:
+    Car:
+      type: object
+      properties:
+        carid:
+          type: integer
+        make:
+          type: string
+        model:
+          type: string
+        trim:
+          type: string
+        year:
+          type: integer
+        miles:
+          type: integer
+        price:
+          type: number
+        vin:
+          type: string
+        status:
+          type: string
+        description:
+          type: string
+        image_path:
+          type: string
+          description: Main image URL
+
+    CarInput:
+      type: object
+      required:
+        - make
+        - model
+        - trim
+        - year
+        - miles
+        - price
+        - vin
+        - status
+        - description
+      properties:
+        make:
+          type: string
+        model:
+          type: string
+        trim:
+          type: string
+        year:
+          type: integer
+        miles:
+          type: integer
+        price:
+          type: number
+        vin:
+          type: string
+        status:
+          type: string
+        description:
+          type: string
+
+    Picture:
+      type: object
+      properties:
+        picid:
+          type: integer
+        carid:
+          type: integer
+        picNo:
+          type: integer
+        image_path:
+          type: string
+        is_main:
+          type: integer
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success]
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [error]
+        message:
+          type: string
