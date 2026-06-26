@@ -16,6 +16,7 @@ CREATE TABLE Car (
     price FLOAT NOT NULL,
     vin VARCHAR(255) NOT NULL,
     color VARCHAR(255) NOT NULL,
+    drivetype VARCHAR(10) NOT NULL,
     status VARCHAR(255) NOT NULL,
     description LONGTEXT NOT NULL
 );

@@ -7,6 +7,7 @@ from routes.car import cars_bp
 from routes.admin import admin_bp
 from routes.auth import auth_bp
 from routes.user import user_bp
+from routes.mail import mail_bp
 
 load_dotenv()
 
@@ -28,6 +29,7 @@ app.register_blueprint(cars_bp, url_prefix='/api')
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(user_bp, url_prefix='/api/user')
+app.register_blueprint(mail_bp, url_prefix='/api/mail')
 
 
 if __name__ == "__main__":

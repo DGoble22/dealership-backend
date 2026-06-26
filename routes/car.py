@@ -1,25 +1,49 @@
 from flask import Blueprint, jsonify, request
 import os
 import pymysql
+from PIL import Image, ImageOps
 from .utils import db_conn, uploads_dir, uploads_url, api_error
+from .auth import admin_required, decode_access_token
 
 
 cars_bp = Blueprint('cars_bp', __name__)
 
 
+def _request_is_admin():
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return False
+
+    token = auth_header.split(" ", 1)[1]
+    payload = decode_access_token(token)
+    if not payload:
+        return False
+
+    return str(payload.get("role") or "").strip().lower() == "admin"
+
+
 @cars_bp.route('/get_cars', methods=['GET'])
 def get_cars():
     try:
+        is_admin = _request_is_admin()
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
 
             query = """SELECT c.*, p.image_path
                         FROM Car c
                         LEFT JOIN Pictures p
-                        ON c.carid = p.carid AND p.is_main = 1
-                        ORDER BY c.carid DESC"""
+                        ON c.carid = p.carid AND p.is_main = 1"""
 
-            cursor.execute(query)
+            values = []
+            if not is_admin:
+                query += " WHERE LOWER(c.status) NOT IN ('sold', 'hidden')"
+
+            query += " ORDER BY c.carid DESC"
+
+            if values:
+                cursor.execute(query, tuple(values))
+            else:
+                cursor.execute(query)
             cars = cursor.fetchall()
 
         for car in cars:
@@ -48,12 +72,17 @@ def get_car_by_id(carid=None):
         return jsonify({"status": "error", "message": "Invalid id"}), 400
 
     try:
+        is_admin = _request_is_admin()
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("SELECT * FROM Car WHERE carid = %s", (carid,))
             result = cursor.fetchone()
 
         if result:
+            status = str(result.get("status") or "").strip().lower()
+            if not is_admin and status in {"sold", "hidden"}:
+                return jsonify({"status": "error", "message": "Car not found"}), 404
+
             return jsonify({"status": "success", "data": result}), 200
         return jsonify({"status": "error", "message": "Car not found"}), 404
     
@@ -74,8 +103,18 @@ def get_car_images():
         return jsonify({"status": "error", "message": "Invalid carid"}), 400
 
     try:
+        is_admin = _request_is_admin()
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("SELECT status FROM Car WHERE carid = %s", (carid,))
+            car = cursor.fetchone()
+            if not car:
+                return jsonify({"status": "error", "message": "Car not found"}), 404
+
+            status = str(car.get("status") or "").strip().lower()
+            if not is_admin and status in {"sold", "hidden"}:
+                return jsonify({"status": "error", "message": "Car not found"}), 404
+
             cursor.execute("SELECT picid, image_path, is_main, picNo FROM Pictures WHERE carid = %s ORDER BY picNo", (carid,))
             result = cursor.fetchall()
 
@@ -92,6 +131,7 @@ def get_car_images():
 
 
 @cars_bp.route('/add_car', methods=['POST'])
+@admin_required
 def add_car():
     try:
         payload = request.form if request.form else (request.get_json(silent=True) or {})
@@ -103,11 +143,16 @@ def add_car():
         price = payload.get('price')
         vin = payload.get('vin')
         color = payload.get('color')
+        drivetype = payload.get('drivetype')
         status = payload.get('status')
         description = payload.get('description')
 
-        if not all([make, model, trim, year, miles, price, vin, color, status, description]):
+        if not all([make, model, trim, year, miles, price, vin, color, drivetype, status, description]):
             return jsonify({"status": "error", "message": "Missing required fields."}), 400
+
+        valid_drivetypes = {'FWD', 'RWD', 'AWD', '4WD'}
+        if drivetype not in valid_drivetypes:
+            return jsonify({"status": "error", "message": "Invalid drivetype"}), 400
 
         try:
             year = int(year)
@@ -118,8 +163,8 @@ def add_car():
 
         with db_conn() as conn:
             cursor = conn.cursor()
-            query = "INSERT INTO Car (make, model, trim, year, miles, price, vin, color, status, description) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(query, (make, model, trim, year, miles, price, vin, color, status, description))
+            query = "INSERT INTO Car (make, model, trim, year, miles, price, vin, color, drivetype, status, description) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(query, (make, model, trim, year, miles, price, vin, color, drivetype, status, description))
             new_car_id = cursor.lastrowid
             conn.commit()
 
@@ -129,6 +174,7 @@ def add_car():
 
 
 @cars_bp.route('/update_car', methods=['POST'])
+@admin_required
 def update_car():
     payload = request.get_json(silent=True, force=True) or request.form or {}
 
@@ -145,7 +191,7 @@ def update_car():
     values = []
     int_fields = {'year', 'miles'}
     float_fields = {'price'}
-    string_fields = {'make', 'model', 'trim', 'vin', 'status', 'description', 'color'}
+    string_fields = {'make', 'model', 'trim', 'vin', 'status', 'description', 'color', 'drivetype'}
 
     for field in [*string_fields, *int_fields, *float_fields]:
         if field not in payload:
@@ -167,6 +213,8 @@ def update_car():
                 return jsonify({"status": "error", "message": "Invalid number for: " + field}), 400
         else:
             value = str(value).strip()
+            if field == 'drivetype' and value not in {'FWD', 'RWD', 'AWD', '4WD'}:
+                return jsonify({"status": "error", "message": "Invalid drivetype"}), 400
 
         fields.append(field + " = %s")
         values.append(value)
@@ -192,6 +240,7 @@ def update_car():
 
 
 @cars_bp.route('/delete_car', methods=['POST'])
+@admin_required
 def delete_car():
     payload = request.get_json(silent=True, force=True) or request.form or {}
 
@@ -227,6 +276,7 @@ def delete_car():
 
 
 @cars_bp.route('/delete_image', methods=['POST'])
+@admin_required
 def delete_image():
     payload = request.get_json(silent=True, force=True) or request.form or {}
 
@@ -272,6 +322,7 @@ def delete_image():
 
 
 @cars_bp.route('/set_is_main', methods=['POST'])
+@admin_required
 def set_is_main():
     payload = request.get_json(silent=True, force=True) or request.form or {}
 
@@ -298,6 +349,7 @@ def set_is_main():
 
 
 @cars_bp.route('/add_single_image', methods=['POST'])
+@admin_required
 def add_single_image():
     carid = request.form.get('carid')
     image = request.files.get('image')
@@ -313,30 +365,42 @@ def add_single_image():
         return jsonify({"status": "error", "message": "Unsupported image type"}), 400
 
     try:
+        focal_x = max(0.0, min(100.0, float(request.form.get('focal_x', 50))))
+        focal_y = max(0.0, min(100.0, float(request.form.get('focal_y', 50))))
+    except (ValueError, TypeError):
+        focal_x, focal_y = 50.0, 50.0
+
+    try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("SELECT MAX(picNo) AS maxNo FROM Pictures WHERE carid = %s", (carid,))
             row = cursor.fetchone() or {}
             pic_no = (row.get('maxNo') or 0) + 1
+            is_main = 1 if pic_no == 1 else 0
 
-            ext = 'jpg'
-            if image.mimetype == 'image/png':
-                ext = 'png'
-            elif image.mimetype == 'image/gif':
-                ext = 'gif'
+            # Insert first to get the auto-increment picid — used in the filename
+            # so every upload gets a unique URL that is never reused after deletion.
+            cursor.execute(
+                "INSERT INTO Pictures (carid, picNo, image_path, is_main, focal_x, focal_y) VALUES (%s, %s, %s, %s, %s, %s)",
+                (carid, pic_no, '', is_main, focal_x, focal_y)
+            )
+            new_pic_id = cursor.lastrowid
 
-            filename = f"car_{carid}_pic_{pic_no}.{ext}"
+            filename = f"car_{carid}_{new_pic_id}.jpg"
             upload_path = os.path.join(uploads_dir(), filename)
             image.save(upload_path)
 
-            db_path = uploads_url(filename)
-            is_main = 1 if pic_no == 1 else 0
+            # Compress: honour EXIF rotation, resize to max 1600px, re-save as JPEG at 82%
+            img = Image.open(upload_path)
+            img = ImageOps.exif_transpose(img)
+            img = img.convert('RGB')
+            if img.width > 1600 or img.height > 1600:
+                img.thumbnail((1600, 1600), Image.LANCZOS)
+            img.save(upload_path, 'JPEG', quality=90, optimize=True)
+            img.close()
 
-            cursor.execute(
-                "INSERT INTO Pictures (carid, picNo, image_path, is_main) VALUES (%s, %s, %s, %s)",
-                (carid, pic_no, db_path, is_main)
-            )
-            new_pic_id = cursor.lastrowid
+            db_path = uploads_url(filename)
+            cursor.execute("UPDATE Pictures SET image_path = %s WHERE picid = %s", (db_path, new_pic_id))
             conn.commit()
 
         return jsonify({
