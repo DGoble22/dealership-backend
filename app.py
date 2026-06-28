@@ -1,7 +1,7 @@
 import os
 import pymysql
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from routes.car import cars_bp
 from routes.admin import admin_bp
@@ -14,6 +14,10 @@ load_dotenv()
 app = Flask(__name__, static_folder="uploads", static_url_path="/uploads")
 app.config["CORS_ALLOWED_ORIGINS"] = os.getenv("CORS_ALLOWED_ORIGINS", "*")
 CORS(app, resources={r"/api/*": {"origins": app.config["CORS_ALLOWED_ORIGINS"]}})
+
+@app.route("/", methods=["GET", "HEAD"])
+def health_root():
+    return jsonify({"status": "ok"}), 200
 
 def get_db_connection():
     return pymysql.connect(
