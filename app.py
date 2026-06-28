@@ -13,7 +13,13 @@ load_dotenv()
 
 app = Flask(__name__, static_folder="uploads", static_url_path="/uploads")
 app.config["CORS_ALLOWED_ORIGINS"] = os.getenv("CORS_ALLOWED_ORIGINS", "*")
-CORS(app, resources={r"/api/*": {"origins": app.config["CORS_ALLOWED_ORIGINS"]}})
+CORS(
+    app,
+    resources={r"/*": {"origins": app.config["CORS_ALLOWED_ORIGINS"]}},
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+)
 
 @app.route("/", methods=["GET", "HEAD"])
 def health_root():
