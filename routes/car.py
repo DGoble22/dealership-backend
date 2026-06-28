@@ -30,8 +30,8 @@ def get_cars():
             cursor = conn.cursor(pymysql.cursors.DictCursor)
 
             query = """SELECT c.*, p.image_path
-                        FROM Car c
-                        LEFT JOIN Pictures p
+                        FROM car c
+                        LEFT JOIN pictures p
                         ON c.carid = p.carid AND p.is_main = 1"""
 
             values = []
@@ -75,7 +75,7 @@ def get_car_by_id(carid=None):
         is_admin = _request_is_admin()
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT * FROM Car WHERE carid = %s", (carid,))
+            cursor.execute("SELECT * FROM car WHERE carid = %s", (carid,))
             result = cursor.fetchone()
 
         if result:
@@ -106,7 +106,7 @@ def get_car_images():
         is_admin = _request_is_admin()
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT status FROM Car WHERE carid = %s", (carid,))
+            cursor.execute("SELECT status FROM car WHERE carid = %s", (carid,))
             car = cursor.fetchone()
             if not car:
                 return jsonify({"status": "error", "message": "Car not found"}), 404
@@ -115,7 +115,7 @@ def get_car_images():
             if not is_admin and status in {"sold", "hidden"}:
                 return jsonify({"status": "error", "message": "Car not found"}), 404
 
-            cursor.execute("SELECT picid, image_path, is_main, picNo FROM Pictures WHERE carid = %s ORDER BY picNo", (carid,))
+            cursor.execute("SELECT picid, image_path, is_main, picNo FROM pictures WHERE carid = %s ORDER BY picNo", (carid,))
             result = cursor.fetchall()
 
         for image in result:
@@ -163,7 +163,7 @@ def add_car():
 
         with db_conn() as conn:
             cursor = conn.cursor()
-            query = "INSERT INTO Car (make, model, trim, year, miles, price, vin, color, drivetype, status, description) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            query = "INSERT INTO car (make, model, trim, year, miles, price, vin, color, drivetype, status, description) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             cursor.execute(query, (make, model, trim, year, miles, price, vin, color, drivetype, status, description))
             new_car_id = cursor.lastrowid
             conn.commit()
@@ -227,7 +227,7 @@ def update_car():
     try:
         with db_conn() as conn:
             cursor = conn.cursor()
-            query = "UPDATE Car SET " + ", ".join(fields) + " WHERE carid = %s"
+            query = "UPDATE car SET " + ", ".join(fields) + " WHERE carid = %s"
             cursor.execute(query, tuple(values))
             if cursor.rowcount > 0:
                 conn.commit()
@@ -256,9 +256,9 @@ def delete_car():
     try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT image_path FROM Pictures WHERE carid = %s", (carid,))
+            cursor.execute("SELECT image_path FROM pictures WHERE carid = %s", (carid,))
             images = cursor.fetchall()
-            cursor.execute("DELETE FROM Car WHERE carid = %s LIMIT 1", (carid,))
+            cursor.execute("DELETE FROM car WHERE carid = %s LIMIT 1", (carid,))
             if cursor.rowcount == 0:
                 return jsonify({"status": "error", "message": "Car not found"}), 404
             conn.commit()
@@ -294,20 +294,20 @@ def delete_image():
     try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT image_path, is_main FROM Pictures WHERE picid = %s", (picid,))
+            cursor.execute("SELECT image_path, is_main FROM pictures WHERE picid = %s", (picid,))
             img = cursor.fetchone()
             if not img:
                 return jsonify({"status": "error", "message": "Image not found"}), 404
 
-            cursor.execute("SELECT picid FROM Pictures WHERE carid = %s AND picid != %s ORDER BY picid LIMIT 1", (carid, picid))
+            cursor.execute("SELECT picid FROM pictures WHERE carid = %s AND picid != %s ORDER BY picid LIMIT 1", (carid, picid))
             next_image = cursor.fetchone()
 
-            cursor.execute("DELETE FROM Pictures WHERE picid = %s LIMIT 1", (picid,))
+            cursor.execute("DELETE FROM pictures WHERE picid = %s LIMIT 1", (picid,))
             if cursor.rowcount == 0:
                 return jsonify({"status": "error", "message": "Image not found"}), 404
 
             if int(img.get("is_main") or 0) == 1 and next_image:
-                cursor.execute("UPDATE Pictures SET is_main = 1 WHERE picid = %s", (next_image["picid"],))
+                cursor.execute("UPDATE pictures SET is_main = 1 WHERE picid = %s", (next_image["picid"],))
 
             conn.commit()
 
@@ -340,8 +340,8 @@ def set_is_main():
     try:
         with db_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE Pictures SET is_main = 0 WHERE carid = %s", (carid,))
-            cursor.execute("UPDATE Pictures SET is_main = 1 WHERE picid = %s", (picid,))
+            cursor.execute("UPDATE pictures SET is_main = 0 WHERE carid = %s", (carid,))
+            cursor.execute("UPDATE pictures SET is_main = 1 WHERE picid = %s", (picid,))
             conn.commit()
         return jsonify({"status": "success", "message": "Cover image updated"}), 200
     except Exception as e:
@@ -373,7 +373,7 @@ def add_single_image():
     try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT MAX(picNo) AS maxNo FROM Pictures WHERE carid = %s", (carid,))
+            cursor.execute("SELECT MAX(picNo) AS maxNo FROM pictures WHERE carid = %s", (carid,))
             row = cursor.fetchone() or {}
             pic_no = (row.get('maxNo') or 0) + 1
             is_main = 1 if pic_no == 1 else 0
@@ -381,7 +381,7 @@ def add_single_image():
             # Insert first to get the auto-increment picid — used in the filename
             # so every upload gets a unique URL that is never reused after deletion.
             cursor.execute(
-                "INSERT INTO Pictures (carid, picNo, image_path, is_main, focal_x, focal_y) VALUES (%s, %s, %s, %s, %s, %s)",
+                "INSERT INTO pictures (carid, picNo, image_path, is_main, focal_x, focal_y) VALUES (%s, %s, %s, %s, %s, %s)",
                 (carid, pic_no, '', is_main, focal_x, focal_y)
             )
             new_pic_id = cursor.lastrowid
@@ -400,7 +400,7 @@ def add_single_image():
             img.close()
 
             db_path = uploads_url(filename)
-            cursor.execute("UPDATE Pictures SET image_path = %s WHERE picid = %s", (db_path, new_pic_id))
+            cursor.execute("UPDATE pictures SET image_path = %s WHERE picid = %s", (db_path, new_pic_id))
             conn.commit()
 
         return jsonify({

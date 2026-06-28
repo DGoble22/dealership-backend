@@ -171,14 +171,14 @@ def register():
 	try:
 		with db_conn() as conn:
 			cursor = conn.cursor()
-			cursor.execute("SELECT userid FROM Users WHERE email = %s LIMIT 1", (email,))
+			cursor.execute("SELECT userid FROM users WHERE email = %s LIMIT 1", (email,))
 			existing = cursor.fetchone()
 			if existing:
 				return jsonify({"status": "error", "message": "Email already in use"}), 409
 
 			password_hash = _generate_password_hash(password)
 			cursor.execute(
-				"INSERT INTO Users (email, password, role, receive_emails) VALUES (%s, %s, %s, %s)",
+				"INSERT INTO users (email, password, role, receive_emails) VALUES (%s, %s, %s, %s)",
 				(email, password_hash, "user", 1 if bool(receive_emails) else 0),
 			)
 			conn.commit()
@@ -201,7 +201,7 @@ def login():
 		with db_conn() as conn:
 			cursor = conn.cursor()
 			cursor.execute(
-				"SELECT userid, email, password, role, receive_emails FROM Users WHERE email = %s LIMIT 1",
+				"SELECT userid, email, password, role, receive_emails FROM users WHERE email = %s LIMIT 1",
 				(email,),
 			)
 			user = cursor.fetchone()
@@ -219,7 +219,7 @@ def login():
 				with db_conn() as conn:
 					cursor = conn.cursor()
 					cursor.execute(
-						"UPDATE Users SET password = %s WHERE userid = %s",
+						"UPDATE users SET password = %s WHERE userid = %s",
 						(_generate_password_hash(password), user["userid"]),
 					)
 					conn.commit()

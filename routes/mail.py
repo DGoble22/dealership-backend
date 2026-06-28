@@ -74,7 +74,7 @@ def _verify_unsub_token(token):
         userid = int(userid_str)
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT email FROM Users WHERE userid = %s", (userid,))
+            cursor.execute("SELECT email FROM users WHERE userid = %s", (userid,))
             row = cursor.fetchone()
         if not row:
             return None
@@ -114,15 +114,15 @@ def notify_new_car():
     try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT * FROM Car WHERE carid = %s", (carid,))
+            cursor.execute("SELECT * FROM car WHERE carid = %s", (carid,))
             car = cursor.fetchone()
             if not car:
                 return jsonify({"status": "error", "message": "Car not found"}), 404
 
-            cursor.execute("SELECT image_path FROM Pictures WHERE carid = %s AND is_main = 1 LIMIT 1", (carid,))
+            cursor.execute("SELECT image_path FROM pictures WHERE carid = %s AND is_main = 1 LIMIT 1", (carid,))
             img_row = cursor.fetchone()
 
-            cursor.execute("SELECT userid, email FROM Users WHERE receive_emails = 1")
+            cursor.execute("SELECT userid, email FROM users WHERE receive_emails = 1")
             subscribers = cursor.fetchall()
 
         if not subscribers:
@@ -219,7 +219,7 @@ def unsubscribe():
     try:
         with db_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE Users SET receive_emails = 0 WHERE userid = %s", (userid,))
+            cursor.execute("UPDATE users SET receive_emails = 0 WHERE userid = %s", (userid,))
             conn.commit()
         return jsonify({"status": "success", "message": "You've been unsubscribed"}), 200
     except Exception as e:

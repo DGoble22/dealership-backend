@@ -1,4 +1,4 @@
-CREATE TABLE Users (
+CREATE TABLE users (
    userid INT AUTO_INCREMENT PRIMARY KEY,
    email VARCHAR(255) NOT NULL UNIQUE,
    password VARCHAR(255) NOT NULL,
@@ -6,7 +6,7 @@ CREATE TABLE Users (
    receive_emails TINYINT(1) DEFAULT 0
 );
 
-CREATE TABLE Car (
+CREATE TABLE car (
     carid INT AUTO_INCREMENT PRIMARY KEY,
     make VARCHAR(255) NOT NULL,
     model VARCHAR(255) NOT NULL,
@@ -21,11 +21,13 @@ CREATE TABLE Car (
     description LONGTEXT NOT NULL
 );
 
-CREATE TABLE Pictures (
+CREATE TABLE pictures (
     picid INT AUTO_INCREMENT PRIMARY KEY,
     carid INT NOT NULL,
     picNo INT NOT NULL,
     image_path VARCHAR(500) NOT NULL,
     is_main TINYINT(1) DEFAULT 0,
-FOREIGN KEY (carid) REFERENCES Car(carid) ON DELETE CASCADE
+    focal_x FLOAT DEFAULT 50,
+    focal_y FLOAT DEFAULT 50,
+    FOREIGN KEY (carid) REFERENCES car(carid) ON DELETE CASCADE
 );
