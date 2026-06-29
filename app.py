@@ -12,7 +12,14 @@ from routes.mail import mail_bp
 load_dotenv()
 
 app = Flask(__name__, static_folder="uploads", static_url_path="/uploads")
-app.config["CORS_ALLOWED_ORIGINS"] = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+
+raw_allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+if raw_allowed_origins and raw_allowed_origins.strip() != "*":
+    allowed_origins = [origin.strip() for origin in raw_allowed_origins.split(",") if origin.strip()]
+else:
+    allowed_origins = "*"
+
+app.config["CORS_ALLOWED_ORIGINS"] = allowed_origins
 CORS(
     app,
     resources={r"/*": {"origins": app.config["CORS_ALLOWED_ORIGINS"]}},
