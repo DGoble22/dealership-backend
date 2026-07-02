@@ -28,6 +28,10 @@ class StorageHelpersTests(unittest.TestCase):
                 self.assertEqual(result["storage"], "local")
                 self.assertEqual(result["filename"], "test.jpg")
 
+    def test_next_picture_number_starts_at_zero(self):
+        self.assertEqual(utils.next_picture_number(None), 0)
+        self.assertEqual(utils.next_picture_number(0), 1)
+
     def test_delete_image_returns_false_for_remote_without_delete_url(self):
         with mock.patch.dict("os.environ", {"IMAGE_STORAGE_BACKEND": "imgbb"}, clear=False):
             result = utils.delete_image("https://imgbb.com/test.jpg")

@@ -68,6 +68,13 @@ def _get_imgbb_api_key():
     return os.getenv("IMGBB_API_KEY_DEV") or os.getenv("IMGBB_API_KEY")
 
 
+def next_picture_number(max_pic_no):
+    try:
+        return (int(max_pic_no) if max_pic_no is not None else -1) + 1
+    except (TypeError, ValueError):
+        return 0
+
+
 def process_image_bytes(image_bytes, content_type=None):
     img = Image.open(BytesIO(image_bytes))
     img = ImageOps.exif_transpose(img)

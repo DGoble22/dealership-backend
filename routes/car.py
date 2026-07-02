@@ -3,8 +3,9 @@ import pymysql
 from .utils import (
     api_error,
     db_conn,
-    delete_image,
+    delete_image as delete_storage_image,
     ensure_picture_delete_url_column,
+    next_picture_number,
     process_image_bytes,
     resolve_image_url,
     upload_image,
@@ -266,7 +267,7 @@ def delete_car():
             conn.commit()
 
         for image in images:
-            delete_image(image.get('image_path'), image.get('delete_url'))
+            delete_storage_image(image.get('image_path'), image.get('delete_url'))
 
         return jsonify({"status": "success", "message": "Car deleted"}), 200
     
@@ -312,7 +313,7 @@ def delete_image():
 
             conn.commit()
 
-        delete_image(img.get('image_path'), img.get('delete_url'))
+        delete_storage_image(img.get('image_path'), img.get('delete_url'))
 
         return jsonify({"status": "success", "message": "Image deleted"}), 200
     except Exception as e:
@@ -375,7 +376,7 @@ def add_single_image():
             cursor = conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("SELECT MAX(picNo) AS maxNo FROM pictures WHERE carid = %s", (carid,))
             row = cursor.fetchone() or {}
-            pic_no = (row.get('maxNo') or 0) + 1
+            pic_no = next_picture_number(row.get('maxNo'))
             is_main = 1 if pic_no == 1 else 0
 
             cursor.execute(
