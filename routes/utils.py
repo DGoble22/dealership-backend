@@ -167,18 +167,14 @@ def delete_image(image_path, delete_url=None):
     backend = (os.getenv("IMAGE_STORAGE_BACKEND") or "local").lower()
     if backend == "imgbb" and isinstance(image_path, str) and image_path.startswith(("http://", "https://")):
         if delete_url:
-            api_key = _get_imgbb_api_key()
-            if api_key:
-                req = urllib_request.Request(
-                    delete_url,
-                    headers={"Content-Type": "application/json"},
-                )
-                try:
-                    with urllib_request.urlopen(req, timeout=15) as response:
-                        body = json.loads(response.read().decode("utf-8"))
-                    return {"storage": "imgbb", "deleted": bool(body.get("success"))}
-                except Exception:
-                    logging.exception("imgBB deletion failed")
+            try:
+                req = urllib_request.Request(delete_url, method="GET")
+                with urllib_request.urlopen(req, timeout=15) as response:
+                    payload = response.read().decode("utf-8")
+                if payload.strip():
+                    return {"storage": "imgbb", "deleted": True}
+            except Exception:
+                logging.exception("imgBB deletion failed")
         return {"storage": "imgbb", "deleted": False}
 
     if backend != "imgbb":
