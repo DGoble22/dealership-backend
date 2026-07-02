@@ -1,8 +1,14 @@
 from flask import Blueprint, jsonify, request
-import os
 import pymysql
-from PIL import Image, ImageOps
-from .utils import db_conn, uploads_dir, uploads_url, api_error
+from .utils import (
+    api_error,
+    db_conn,
+    delete_image,
+    ensure_picture_delete_url_column,
+    process_image_bytes,
+    resolve_image_url,
+    upload_image,
+)
 from .auth import admin_required, decode_access_token
 
 
@@ -48,10 +54,7 @@ def get_cars():
 
         for car in cars:
             image_path = car.get("image_path")
-            if image_path:
-                car["image_path"] = uploads_url(os.path.basename(image_path))
-            else:
-                car["image_path"] = uploads_url("default_car_image.jpg")
+            car["image_path"] = resolve_image_url(image_path)
 
         return jsonify({"status": "success", "data": cars}), 200
     except Exception as e:
@@ -120,10 +123,7 @@ def get_car_images():
 
         for image in result:
             image_path = image.get("image_path")
-            if image_path:
-                image["image_path"] = uploads_url(os.path.basename(image_path))
-            else:
-                image["image_path"] = uploads_url("default_car_image.jpg")
+            image["image_path"] = resolve_image_url(image_path)
 
         return jsonify({"status": "success", "data": result}), 200
     except Exception as e:
@@ -253,10 +253,12 @@ def delete_car():
     except ValueError:
         return jsonify({"status": "error", "message": "Invalid carid"}), 400
 
+    ensure_picture_delete_url_column()
+
     try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT image_path FROM pictures WHERE carid = %s", (carid,))
+            cursor.execute("SELECT image_path, delete_url FROM pictures WHERE carid = %s", (carid,))
             images = cursor.fetchall()
             cursor.execute("DELETE FROM car WHERE carid = %s LIMIT 1", (carid,))
             if cursor.rowcount == 0:
@@ -264,10 +266,7 @@ def delete_car():
             conn.commit()
 
         for image in images:
-            filename = os.path.basename(image.get('image_path') or '')
-            local_path = os.path.join(uploads_dir(), filename)
-            if filename and os.path.exists(local_path):
-                os.remove(local_path)
+            delete_image(image.get('image_path'), image.get('delete_url'))
 
         return jsonify({"status": "success", "message": "Car deleted"}), 200
     
@@ -291,10 +290,12 @@ def delete_image():
     except ValueError:
         return jsonify({"status": "error", "message": "Integer expected"}), 400
 
+    ensure_picture_delete_url_column()
+
     try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT image_path, is_main FROM pictures WHERE picid = %s", (picid,))
+            cursor.execute("SELECT image_path, is_main, delete_url FROM pictures WHERE picid = %s", (picid,))
             img = cursor.fetchone()
             if not img:
                 return jsonify({"status": "error", "message": "Image not found"}), 404
@@ -311,10 +312,7 @@ def delete_image():
 
             conn.commit()
 
-        filename = os.path.basename(img.get('image_path') or '')
-        local_path = os.path.join(uploads_dir(), filename)
-        if filename and os.path.exists(local_path):
-            os.remove(local_path)
+        delete_image(img.get('image_path'), img.get('delete_url'))
 
         return jsonify({"status": "success", "message": "Image deleted"}), 200
     except Exception as e:
@@ -370,6 +368,8 @@ def add_single_image():
     except (ValueError, TypeError):
         focal_x, focal_y = 50.0, 50.0
 
+    ensure_picture_delete_url_column()
+
     try:
         with db_conn() as conn:
             cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -378,8 +378,6 @@ def add_single_image():
             pic_no = (row.get('maxNo') or 0) + 1
             is_main = 1 if pic_no == 1 else 0
 
-            # Insert first to get the auto-increment picid — used in the filename
-            # so every upload gets a unique URL that is never reused after deletion.
             cursor.execute(
                 "INSERT INTO pictures (carid, picNo, image_path, is_main, focal_x, focal_y) VALUES (%s, %s, %s, %s, %s, %s)",
                 (carid, pic_no, '', is_main, focal_x, focal_y)
@@ -387,20 +385,16 @@ def add_single_image():
             new_pic_id = cursor.lastrowid
 
             filename = f"car_{carid}_{new_pic_id}.jpg"
-            upload_path = os.path.join(uploads_dir(), filename)
-            image.save(upload_path)
+            image_bytes = image.read()
+            processed_bytes, _ = process_image_bytes(image_bytes, image.mimetype)
+            uploaded = upload_image(processed_bytes, filename=filename, content_type="image/jpeg")
 
-            # Compress: honour EXIF rotation, resize to max 1600px, re-save as JPEG at 82%
-            img = Image.open(upload_path)
-            img = ImageOps.exif_transpose(img)
-            img = img.convert('RGB')
-            if img.width > 1600 or img.height > 1600:
-                img.thumbnail((1600, 1600), Image.LANCZOS)
-            img.save(upload_path, 'JPEG', quality=90, optimize=True)
-            img.close()
-
-            db_path = uploads_url(filename)
-            cursor.execute("UPDATE pictures SET image_path = %s WHERE picid = %s", (db_path, new_pic_id))
+            db_path = uploaded.get("url")
+            delete_url = uploaded.get("delete_url")
+            cursor.execute(
+                "UPDATE pictures SET image_path = %s, delete_url = %s WHERE picid = %s",
+                (db_path, delete_url, new_pic_id),
+            )
             conn.commit()
 
         return jsonify({
@@ -413,11 +407,3 @@ def add_single_image():
         }), 201
     except Exception as e:
         return api_error(e)
-    
-    except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-        return jsonify({"status": "error", "message": str(e)}), 500
