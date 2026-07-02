@@ -3,6 +3,7 @@ import unittest
 from unittest import mock
 
 from routes import utils
+from routes import car as car_routes
 
 
 class StorageHelpersTests(unittest.TestCase):
@@ -51,6 +52,10 @@ class StorageHelpersTests(unittest.TestCase):
 
             self.assertTrue(result)
             fake_conn.commit.assert_called_once()
+
+    def test_delete_image_route_handler_has_distinct_name(self):
+        self.assertTrue(hasattr(car_routes, "delete_image_record"))
+        self.assertEqual(car_routes.delete_image_record.__name__, "delete_image_record")
 
 
 if __name__ == "__main__":

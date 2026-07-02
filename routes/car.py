@@ -277,7 +277,7 @@ def delete_car():
 
 @cars_bp.route('/delete_image', methods=['POST'])
 @admin_required
-def delete_image():
+def delete_image_record():
     payload = request.get_json(silent=True, force=True) or request.form or {}
 
     carid = payload.get('carid')
