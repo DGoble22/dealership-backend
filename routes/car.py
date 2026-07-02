@@ -377,7 +377,7 @@ def add_single_image():
             cursor.execute("SELECT MAX(picNo) AS maxNo FROM pictures WHERE carid = %s", (carid,))
             row = cursor.fetchone() or {}
             pic_no = next_picture_number(row.get('maxNo'))
-            is_main = 1 if pic_no == 1 else 0
+            is_main = 1 if pic_no == 0 else 0
 
             cursor.execute(
                 "INSERT INTO pictures (carid, picNo, image_path, is_main, focal_x, focal_y) VALUES (%s, %s, %s, %s, %s, %s)",
