@@ -169,9 +169,7 @@ def delete_image(image_path, delete_url=None):
         if delete_url:
             try:
                 req = urllib_request.Request(delete_url, method="GET")
-                with urllib_request.urlopen(req, timeout=15) as response:
-                    payload = response.read().decode("utf-8")
-                if payload.strip():
+                with urllib_request.urlopen(req, timeout=15):
                     return {"storage": "imgbb", "deleted": True}
             except Exception:
                 logging.exception("imgBB deletion failed")
