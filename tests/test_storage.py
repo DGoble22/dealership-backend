@@ -53,6 +53,28 @@ class StorageHelpersTests(unittest.TestCase):
             self.assertEqual(result["storage"], "imgbb")
             self.assertTrue(result["deleted"])
 
+<<<<<<< HEAD
+=======
+    def test_delete_image_uses_imgbb_json_delete_endpoint(self):
+        with mock.patch.dict("os.environ", {"IMAGE_STORAGE_BACKEND": "imgbb"}, clear=False):
+            fake_response = mock.MagicMock()
+            fake_response.read.return_value = b"{}"
+            fake_context = mock.MagicMock()
+            fake_context.__enter__.return_value = fake_response
+            fake_context.__exit__.return_value = None
+
+            with mock.patch("routes.utils.urllib_request.urlopen", return_value=fake_context) as urlopen_mock:
+                result = utils.delete_image("https://imgbb.com/test.jpg", "https://ibb.co/abc123/def456")
+
+            request = urlopen_mock.call_args.args[0]
+            self.assertEqual(request.full_url, "https://ibb.co/json")
+            self.assertIn(b"pathname", request.data)
+            self.assertIn(b"abc123", request.data)
+            self.assertIn(b"def456", request.data)
+            self.assertEqual(result["storage"], "imgbb")
+            self.assertTrue(result["deleted"])
+
+>>>>>>> d5d5b17 (mgbb delete fix 4)
     def test_ensure_picture_delete_url_column_creates_missing_column(self):
         fake_conn = mock.MagicMock()
         fake_cursor = fake_conn.cursor.return_value

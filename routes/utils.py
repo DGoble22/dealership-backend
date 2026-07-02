@@ -6,7 +6,7 @@ import os
 import time
 from io import BytesIO
 from urllib import request as urllib_request
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from PIL import Image, ImageOps
 from flask import jsonify
@@ -168,6 +168,27 @@ def delete_image(image_path, delete_url=None):
     if backend == "imgbb" and isinstance(image_path, str) and image_path.startswith(("http://", "https://")):
         if delete_url:
             try:
+                parsed = urlparse(delete_url)
+                path_parts = [part for part in parsed.path.split("/") if part]
+                if len(path_parts) >= 2 and parsed.netloc in {"ibb.co", "www.ibb.co", "imgbb.com", "www.imgbb.com"}:
+                    image_id = path_parts[-2]
+                    image_hash = path_parts[-1]
+                    payload = urlencode({
+                        "pathname": f"/{image_id}/{image_hash}",
+                        "action": "delete",
+                        "delete": "image",
+                        "from": "resource",
+                        "deleting[id]": image_id,
+                        "deleting[hash]": image_hash,
+                    }).encode("utf-8")
+                    req = urllib_request.Request(
+                        "https://ibb.co/json",
+                        data=payload,
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    )
+                    with urllib_request.urlopen(req, timeout=15):
+                        return {"storage": "imgbb", "deleted": True}
+
                 req = urllib_request.Request(delete_url, method="GET")
                 with urllib_request.urlopen(req, timeout=15):
                     return {"storage": "imgbb", "deleted": True}
