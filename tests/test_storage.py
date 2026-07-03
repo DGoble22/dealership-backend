@@ -53,8 +53,6 @@ class StorageHelpersTests(unittest.TestCase):
             self.assertEqual(result["storage"], "imgbb")
             self.assertTrue(result["deleted"])
 
-<<<<<<< HEAD
-=======
     def test_delete_image_uses_imgbb_json_delete_endpoint(self):
         with mock.patch.dict("os.environ", {"IMAGE_STORAGE_BACKEND": "imgbb"}, clear=False):
             fake_response = mock.MagicMock()
@@ -74,7 +72,6 @@ class StorageHelpersTests(unittest.TestCase):
             self.assertEqual(result["storage"], "imgbb")
             self.assertTrue(result["deleted"])
 
->>>>>>> d5d5b17 (mgbb delete fix 4)
     def test_ensure_picture_delete_url_column_creates_missing_column(self):
         fake_conn = mock.MagicMock()
         fake_cursor = fake_conn.cursor.return_value

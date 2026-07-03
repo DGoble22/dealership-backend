@@ -4,3 +4,4 @@ uploads
 .DS_Store
 routes/.DS_Store
 **/.DS_Store
+.ruff_cache
