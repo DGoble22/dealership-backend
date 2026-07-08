@@ -25,7 +25,7 @@ CORS(
     resources={r"/*": {"origins": app.config["CORS_ALLOWED_ORIGINS"]}},
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+    methods=["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
 )
 
 @app.route("/", methods=["GET", "HEAD"])

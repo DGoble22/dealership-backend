@@ -262,3 +262,53 @@ def me():
 			"role": payload.get("role"),
 		},
 	}), 200
+
+
+@auth_bp.route('/change-password', methods=['POST'])
+@require_auth()
+def change_password():
+	payload = request.get_json(silent=True) or {}
+	current_password = str(payload.get("currentPassword") or payload.get("current_password") or "")
+	new_password = str(payload.get("newPassword") or payload.get("new_password") or "")
+
+	if not current_password or not new_password:
+		return jsonify({"status": "error", "message": "Current password and new password are required"}), 400
+
+	password_error = _validate_password_policy(new_password)
+	if password_error:
+		return jsonify({"status": "error", "message": password_error}), 400
+
+	try:
+		with db_conn() as conn:
+			cursor = conn.cursor()
+			cursor.execute(
+				"SELECT userid, password FROM users WHERE userid = %s LIMIT 1",
+				(g.current_user["userid"],),
+			)
+			user = cursor.fetchone()
+
+			if not user:
+				return jsonify({"status": "error", "message": "User not found"}), 404
+
+			stored_password = user.get("password", "")
+			password_ok = _verify_password(current_password, stored_password)
+
+			# Legacy support for unhashed passwords kept for backward compatibility.
+			if not password_ok and stored_password and "$" not in stored_password:
+				password_ok = hmac.compare_digest(stored_password, current_password)
+
+			if not password_ok:
+				return jsonify({"status": "error", "message": "Current password is incorrect"}), 401
+
+			if _verify_password(new_password, stored_password):
+				return jsonify({"status": "error", "message": "New password must be different from current password"}), 400
+
+			cursor.execute(
+				"UPDATE users SET password = %s WHERE userid = %s",
+				(_generate_password_hash(new_password), g.current_user["userid"]),
+			)
+			conn.commit()
+
+		return jsonify({"status": "success", "message": "Password updated successfully"}), 200
+	except Exception as e:
+		return api_error(e)
