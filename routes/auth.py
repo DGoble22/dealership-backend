@@ -1,5 +1,6 @@
 import base64
 from functools import wraps
+from datetime import datetime, timedelta
 import hashlib
 import hmac
 import json
@@ -9,11 +10,14 @@ import secrets
 import time
 
 from flask import Blueprint, g, request, jsonify
+import resend
 
 from .utils import db_conn, api_error
 
 auth_bp = Blueprint('auth_bp', __name__)
 PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$")
+EMAIL_REGEX = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+PASSWORD_RESET_TOKEN_TTL_MINUTES = 30
 
 
 def _validate_password_policy(password):
@@ -62,6 +66,62 @@ def _verify_password(password, stored_hash):
 		return hmac.compare_digest(check_digest, digest)
 	except Exception:
 		return False
+
+
+def _ensure_password_reset_table():
+	with db_conn() as conn:
+		cursor = conn.cursor()
+		cursor.execute(
+			"""
+			CREATE TABLE IF NOT EXISTS password_reset_tokens (
+				token_hash CHAR(64) NOT NULL PRIMARY KEY,
+				userid INT NOT NULL,
+				email VARCHAR(255) NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				expires_at DATETIME NOT NULL,
+				used_at DATETIME NULL,
+				INDEX idx_password_reset_userid (userid),
+				INDEX idx_password_reset_email (email),
+				INDEX idx_password_reset_expires_at (expires_at),
+				CONSTRAINT fk_password_reset_user FOREIGN KEY (userid) REFERENCES users(userid) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+			"""
+		)
+		conn.commit()
+
+
+def _password_reset_token_hash(token):
+	return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _site_url():
+	return (os.getenv("SITE_URL") or "http://localhost:5173").rstrip("/")
+
+
+def _send_password_reset_email(recipient_email, reset_url):
+	resend.api_key = os.getenv("RESEND_API_KEY", "")
+	if not resend.api_key:
+		raise RuntimeError("Mail not configured")
+
+	resend.Emails.send({
+		"from": "Tahoe Kings <noreply@tahoekings.com>",
+		"to": recipient_email,
+		"subject": "Reset your Tahoe Kings password",
+		"html": f"""
+		<div style="font-family:sans-serif;max-width:600px;margin:auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">
+		  <div style="background:linear-gradient(135deg,#0f172a,#1d3557);padding:24px 32px;">
+		    <h1 style="color:white;margin:0;font-size:1.4rem;">Tahoe Kings</h1>
+		    <p style="color:rgba(255,255,255,0.75);margin:4px 0 0;">Password reset requested</p>
+		  </div>
+		  <div style="padding:28px 32px;color:#1f2937;">
+		    <p style="margin:0 0 16px;">We received a request to reset the password for this account.</p>
+		    <p style="margin:0 0 24px;">Use the link below to choose a new password. This link expires in 30 minutes.</p>
+		    <a href="{reset_url}" style="display:inline-block;background:#163a63;color:white;padding:12px 28px;border-radius:999px;text-decoration:none;font-weight:600;">Reset Password</a>
+		    <p style="margin:24px 0 0;color:#6b7280;font-size:0.9rem;word-break:break-all;">If the button does not work, copy and paste this link into your browser:<br/>{reset_url}</p>
+		  </div>
+		</div>
+		""",
+	})
 
 
 def _create_access_token(user):
@@ -310,5 +370,113 @@ def change_password():
 			conn.commit()
 
 		return jsonify({"status": "success", "message": "Password updated successfully"}), 200
+	except Exception as e:
+		return api_error(e)
+
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+	payload = request.get_json(silent=True) or {}
+	email = str(payload.get("email") or "").strip().lower()
+
+	if not email:
+		return jsonify({"status": "error", "message": "Email is required"}), 400
+
+	if not EMAIL_REGEX.match(email):
+		return jsonify({"status": "error", "message": "Invalid email address"}), 400
+
+	try:
+		_ensure_password_reset_table()
+		with db_conn() as conn:
+			cursor = conn.cursor()
+			cursor.execute("SELECT userid, email FROM users WHERE email = %s LIMIT 1", (email,))
+			user = cursor.fetchone()
+
+			if not user:
+				return jsonify({"status": "success", "message": "If an account exists for that email, reset instructions have been sent."}), 200
+
+			raw_token = secrets.token_urlsafe(32)
+			token_hash = _password_reset_token_hash(raw_token)
+			expires_at = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_TTL_MINUTES)
+
+			cursor.execute("DELETE FROM password_reset_tokens WHERE userid = %s", (user["userid"],))
+			cursor.execute(
+				"INSERT INTO password_reset_tokens (token_hash, userid, email, expires_at) VALUES (%s, %s, %s, %s)",
+				(token_hash, user["userid"], user["email"], expires_at),
+			)
+			conn.commit()
+
+		reset_url = f"{_site_url()}/#/reset-password?token={raw_token}"
+		try:
+			_send_password_reset_email(user["email"], reset_url)
+		except Exception:
+			with db_conn() as conn:
+				cursor = conn.cursor()
+				cursor.execute("DELETE FROM password_reset_tokens WHERE token_hash = %s", (token_hash,))
+				conn.commit()
+			raise
+
+		return jsonify({"status": "success", "message": "If an account exists for that email, reset instructions have been sent."}), 200
+	except Exception as e:
+		return api_error(e, "Failed to send reset email")
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+	payload = request.get_json(silent=True) or {}
+	token = str(payload.get("token") or "").strip()
+	new_password = str(payload.get("newPassword") or payload.get("new_password") or "")
+	confirm_password = str(payload.get("confirmPassword") or payload.get("confirm_password") or "")
+
+	if not token or not new_password or not confirm_password:
+		return jsonify({"status": "error", "message": "Token, new password, and confirm password are required"}), 400
+
+	if new_password != confirm_password:
+		return jsonify({"status": "error", "message": "Passwords do not match"}), 400
+
+	password_error = _validate_password_policy(new_password)
+	if password_error:
+		return jsonify({"status": "error", "message": password_error}), 400
+
+	token_hash = _password_reset_token_hash(token)
+
+	try:
+		with db_conn() as conn:
+			cursor = conn.cursor()
+			cursor.execute(
+				"""
+				SELECT token_hash, userid, email
+				FROM password_reset_tokens
+				WHERE token_hash = %s AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()
+				LIMIT 1
+				""",
+				(token_hash,),
+			)
+			token_row = cursor.fetchone()
+
+			if not token_row:
+				return jsonify({"status": "error", "message": "Invalid or expired reset link"}), 400
+
+			cursor.execute("SELECT userid, password FROM users WHERE userid = %s LIMIT 1", (token_row["userid"],))
+			user = cursor.fetchone()
+			if not user:
+				return jsonify({"status": "error", "message": "Account not found"}), 404
+
+			stored_password = user.get("password", "")
+			if _verify_password(new_password, stored_password):
+				return jsonify({"status": "error", "message": "New password must be different from the current password"}), 400
+
+			cursor.execute(
+				"UPDATE users SET password = %s WHERE userid = %s",
+				(_generate_password_hash(new_password), user["userid"]),
+			)
+			cursor.execute(
+				"UPDATE password_reset_tokens SET used_at = UTC_TIMESTAMP() WHERE token_hash = %s AND used_at IS NULL",
+				(token_hash,),
+			)
+			cursor.execute("DELETE FROM password_reset_tokens WHERE userid = %s AND used_at IS NULL", (user["userid"],))
+			conn.commit()
+
+		return jsonify({"status": "success", "message": "Password reset successfully"}), 200
 	except Exception as e:
 		return api_error(e)
